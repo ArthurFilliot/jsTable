@@ -28,6 +28,16 @@ mTableTemplate.innerHTML = `
       overflow-y: scroll;
       height:150px;
     }
+    #progressbar {
+      height:2px;
+      border:1px solid black;
+      background-color:#EFEFEF;
+    }
+    #progressbar div {
+      width:0%;
+      height:2px;
+      background-color:#000000;
+    }
     .header {
       border:1px solid black;
     }
@@ -157,5 +167,8 @@ mTableTemplate.innerHTML = `
         <slot name="07"></slot>
       </div>
     </div>
+  </div>
+  <div id="progressbar">
+    <div />
   </div>
 `;

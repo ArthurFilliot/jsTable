@@ -4,6 +4,7 @@ customElements.define('m-table', class extends HTMLElement {
     id;
     sroot;
     nbcols;
+    nblines;
     headers;
     width;
     headerIndex         = new Map();
@@ -21,17 +22,18 @@ customElements.define('m-table', class extends HTMLElement {
         this.id       = this.getAttribute('id');
         this.headers  = JSON.parse(this.getAttribute('headers'));
         this.nbcols   = this.headers.length;
+        this.nblines  = parseInt(this.getAttribute('nblines'));
         this.width    = this.getAttribute('width');
         this.paginationStep = parseInt(this.getAttribute('pagination-step'));
 
         // Init buttons
         let switchTools = this.sroot.getElementById("switchTools");
-        switchTools.onclick = this.getSwitchTools();
+        switchTools.onclick = this.switchTools;
 
         // Init columns frame
         let mframe = this.selectFrame();
         mframe.style.width  = this.width;
-        mframe.onscroll = this.getFrameScroll();
+        mframe.onscroll = this.frameScroll;
 
         // Init headers and columns
         let headerscontainer         = this.selectHeaders();
@@ -50,20 +52,20 @@ customElements.define('m-table', class extends HTMLElement {
             caps.draggable      = true;
             caps.ondragstart    = this.columnDragstart; // Makes it draggable
             caps.ondragover     = this.columnDragOver;
-            caps.ondrop         = this.getColumnDrop(); // Makes it able to receive drop
+            caps.ondrop         = this.columnDrop; // Makes it able to receive drop
             let capsPrevious    = this.selectHeaderCapsPrevious(header);
-            capsPrevious.onclick = this.getColumnSweepPrevious();
+            capsPrevious.onclick = this.columnSweepPrevious;
             let capsNext        = this.selectHeaderCapsNext(header);
-            capsNext.onclick    = this.getColumnSweepNext();
+            capsNext.onclick    = this.columnSweepNext;
 
             let filters             = this.selectHeaderFilters(header);
             filters.style.display   = 'none';
-            filters.onclick         = this.getInitFilters();
+            filters.onclick         = this.initFilters;
             this.columnFiltersInit.set(filters,false);
 
             let sorts           = this.selectHeaderSorts(header);
             sorts.style.display = 'none';
-            sorts.onclick       = this.getColumnSort(); // Makes it clickable
+            sorts.onclick       = this.columnSort; // Makes it clickable
 
             let headertitle       = this.selectHeaderTitle(header);
             headertitle.innerHTML = this.headers[i];
@@ -79,17 +81,36 @@ customElements.define('m-table', class extends HTMLElement {
             colscontainer.removeChild(colscontainer.children[i]);
             headerscontainer.removeChild(headerscontainer.children[i]);
         }
+
+        // Init progress bar
+        let observer = new MutationObserver(this.loadingEvent);
+        observer.observe(this, {childList: true });
         console.log("Init done!");
     }
 
+    get loadingEvent() {
+        let progressbar         = this.selectProgressbar();
+        let nbelements          = this.nbcols*this.nblines;
+        let nbloadedelements    = 0;
+        return function(mutationsList) {
+            for(var mutation of mutationsList) {
+                if (mutation.addedNodes[0].nodeType!=3) {
+                    let percent = ++nbloadedelements/nbelements*100;
+                    progressbar.style.width=percent+'%';
+                }
+            }
+        };
+    }
+
+    // DOM handlers 
     init2() {
         // In height
         let firstelement            = this.selectFirstSlotted();
-        let doPagination            = this.getDoPagination();
+        let doPagination            = this.doPagination;
         doPagination(this.paginationStep*2);
         this.rowHeight              = firstelement.offsetHeight;
         
-        this.selectFrame().onscroll = this.getFrameScroll();
+        this.selectFrame().onscroll = this.frameScroll;
 
         // In width
         let headerscontainer = this.selectHeaders();
@@ -106,7 +127,7 @@ customElements.define('m-table', class extends HTMLElement {
         console.log("Init2 done!");
     }  
 
-    getInitFilters() {
+    get initFilters() {
         let id        = this.id;
         let sroot     = this.sroot;
         let container = this;
@@ -130,7 +151,7 @@ customElements.define('m-table', class extends HTMLElement {
         }
     }
 
-    getSwitchTools() {
+    get switchTools() {
         let nbcols      = this.nbcols;
         let models      = this.models;
         let cellsIndex  = this.cellsIndex;
@@ -197,66 +218,9 @@ customElements.define('m-table', class extends HTMLElement {
         };
     }
 
-    selectFirstSlotted() {
-        return document.querySelector('#'+this.id+' > [slot]')
-    }
-
-    selectFirstSlottedIn(slotname) {
-        return document.querySelector('#'+this.id+' > [slot"'+slotName+'"]');
-    }
-
-    selectElementChild(element, index) {
-        return this.sroot.querySelectorAll("#"+element.id+" > div")[index];
-    }
-
-    selectHeaders() {
-        return this.sroot.getElementById("headers");
-    }
-
-    selectColumns() {
-        return this.sroot.getElementById("columns");
-    }
-
-    selectFrame() {
-        return this.sroot.getElementById("mframe");
-    }
-
-    selectHeaderCaps(header) {
-        return header.firstElementChild;
-    }
-
-    selectHeaderCapsPrevious(header) {
-        return header.firstElementChild.firstElementChild;
-    }
-
-    selectHeaderCapsNext(header) {
-        return header.firstElementChild.lastElementChild;
-    }
-
-    selectHeaderFilters(header) {
-        return this.selectElementChild(header, 1);
-    }
-
-    selectHeaderSorts(header) {
-        return this.selectElementChild(header, 2);
-    }
-
-    selectHeaderTitle(header) {
-        return this.selectElementChild(header, 3);
-    }
-
-    selectColumnSlot(column) {
-        return column.firstElementChild;
-    }
-
-    selectHeaderColumn(header) {
-        let suffix = header.id.replace('header','');
-        return this.sroot.getElementById('column'+suffix);
-    }
-
-    getFrameScroll() {
+    get frameScroll() {
         let container       = this;
-        let doPagination    = this.getDoPagination();
+        let doPagination    = this.doPagination;
         let nbcols          = this.nbcols;
         let paginationstep  = this.paginationStep;
         return function frameScroll(ev) {
@@ -268,7 +232,7 @@ customElements.define('m-table', class extends HTMLElement {
         };
     }
 
-    getDoPagination() {
+    get doPagination() {
         let floor       = Math.floor;
         let container   = this;
         let columns     = container.selectColumns();
@@ -294,35 +258,9 @@ customElements.define('m-table', class extends HTMLElement {
         }
     }
 
-    constructor() {
-        super();
-        this.sroot  = this.attachShadow({mode: 'open'});
-        let tmpl    = mTableTemplate.content.cloneNode(true);
-        this.sroot.appendChild(tmpl);
-    }
-
-    static get observedAttributes() {
-        return ['nbcols','types', 'colsorder', 'rowsorder', 'categories'];
-    }
-
-    connectedCallback() {
-        console.log('connectedCallback() : m-table');
-        this.init();
-    }
-
-    disconnectedCallback() {
-        console.warn('disconnectedCallback()');
-    }
-
-    attributeChangedCallback(name, oldValue, newValue) {
-        console.log('attributeChangedCallback()', name, oldValue, newValue);
-    }
-
-    // DOM handlers 
-
-    getColumnDrop() {
+    get columnDrop() {
         let container = this.sroot;
-        let columnSweep = this.getColumnSweep();
+        let columnSweep = this.columnSweep;
         return function columnDrop(ev) {
             let source  = container.getElementById(ev.dataTransfer.getData("sourceid")).parentNode;
             let dest    = ev.srcElement.parentNode;
@@ -330,10 +268,10 @@ customElements.define('m-table', class extends HTMLElement {
         };
     }
 
-    getColumnSweepPrevious() {
+    get columnSweepPrevious() {
         let headerIndex = this.headerIndex;
         let headerIndexInvert = this.headerIndexInvert;
-        let columnSweep = this.getColumnSweep();
+        let columnSweep = this.columnSweep;
         return function sweepPrevious(ev) {
             let source  = ev.srcElement.parentNode.parentNode;
             let pos     = headerIndex.get(source);
@@ -344,11 +282,11 @@ customElements.define('m-table', class extends HTMLElement {
         }
     }
 
-    getColumnSweepNext() {
+    get columnSweepNext() {
         let nbcols              = this.nbcols;
         let headerIndex         = this.headerIndex;
         let headerIndexInvert   = this.headerIndexInvert;
-        let columnSweep         = this.getColumnSweep();
+        let columnSweep         = this.columnSweep;
         return function sweepPrevious(ev) {
             let source  = ev.srcElement.parentNode.parentNode;
             let pos     = headerIndex.get(source);
@@ -359,7 +297,7 @@ customElements.define('m-table', class extends HTMLElement {
         }
     }
 
-    getColumnSweep() {
+    get columnSweep() {
         let headerIndex = this.headerIndex;
         let headerIndexInvert = this.headerIndexInvert;
         let columnIndex = this.columnIndex;
@@ -403,7 +341,7 @@ customElements.define('m-table', class extends HTMLElement {
         ev.dataTransfer.setData("sourceid", ev.srcElement.id);
     };
 
-    getColumnSort() {
+    get columnSort() {
         let id = this.id;
         return function columnSort(ev) {
             let slotName = ev.srcElement.parentNode.lastElementChild.name;
@@ -413,6 +351,93 @@ customElements.define('m-table', class extends HTMLElement {
                 console.log(element.innerHTML);
             }
         }
+    }
+
+    // Element selection methods
+    selectFirstSlotted() {
+        return document.querySelector('#'+this.id+' > [slot]')
+    }
+
+    selectFirstSlottedIn(slotname) {
+        return document.querySelector('#'+this.id+' > [slot"'+slotName+'"]');
+    }
+
+    selectElementChild(element, index) {
+        return this.sroot.querySelectorAll("#"+element.id+" > div")[index];
+    }
+
+    selectHeaders() {
+        return this.sroot.getElementById("headers");
+    }
+
+    selectColumns() {
+        return this.sroot.getElementById("columns");
+    }
+
+    selectFrame() {
+        return this.sroot.getElementById("mframe");
+    }
+
+    selectProgressbar() {
+        return this.sroot.getElementById("progressbar").firstElementChild;
+    }
+
+    selectHeaderCaps(header) {
+        return header.firstElementChild;
+    }
+
+    selectHeaderCapsPrevious(header) {
+        return header.firstElementChild.firstElementChild;
+    }
+
+    selectHeaderCapsNext(header) {
+        return header.firstElementChild.lastElementChild;
+    }
+
+    selectHeaderFilters(header) {
+        return this.selectElementChild(header, 1);
+    }
+
+    selectHeaderSorts(header) {
+        return this.selectElementChild(header, 2);
+    }
+
+    selectHeaderTitle(header) {
+        return this.selectElementChild(header, 3);
+    }
+
+    selectColumnSlot(column) {
+        return column.firstElementChild;
+    }
+
+    selectHeaderColumn(header) {
+        let suffix = header.id.replace('header','');
+        return this.sroot.getElementById('column'+suffix);
+    }
+
+    // HTMLElement Overrides
+    constructor() {
+        super();
+        this.sroot  = this.attachShadow({mode: 'open'});
+        let tmpl    = mTableTemplate.content.cloneNode(true);
+        this.sroot.appendChild(tmpl);
+    }
+
+    static get observedAttributes() {
+        return ['nbcols','types', 'colsorder', 'rowsorder', 'categories'];
+    }
+
+    connectedCallback() {
+        console.log('connectedCallback() : m-table');
+        this.init();
+    }
+
+    disconnectedCallback() {
+        console.warn('disconnectedCallback()');
+    }
+
+    attributeChangedCallback(name, oldValue, newValue) {
+        console.log('attributeChangedCallback()', name, oldValue, newValue);
     }
     
 });
